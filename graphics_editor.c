@@ -111,19 +111,38 @@ static void raster_line(int r0,int c0,int r1,int c1){
 }
 
 static void raster_circle_points(int cr,int cc,int x,int y){
-    plot(cr+x,cc+y);plot(cr-x,cc+y);
-    plot(cr+x,cc-y);plot(cr-x,cc-y);
-    plot(cr+y,cc+x);plot(cr-y,cc+x);
-    plot(cr+y,cc-x);plot(cr-y,cc-x);
+    if(x==0){
+        plot(cr,cc+y);
+        plot(cr,cc-y);
+        plot(cr+y,cc);
+        plot(cr-y,cc);
+    }
+    else if(x==y){
+        plot(cr+x,cc+y);
+        plot(cr-x,cc+y);
+        plot(cr+x,cc-y);
+        plot(cr-x,cc-y);
+    }
+    else{
+        plot(cr+x,cc+y);plot(cr-x,cc+y);
+        plot(cr+x,cc-y);plot(cr-x,cc-y);
+        plot(cr+y,cc+x);plot(cr-y,cc+x);
+        plot(cr+y,cc-x);plot(cr-y,cc-x);
+    }
 }
 
 static void raster_circle(int cr,int cc,int radius){
-    int x=0,y=radius,d=3-2*radius;
+    int x=0,y=radius,d=1-radius;
     raster_circle_points(cr,cc,x,y);
     while(x<=y){
         x++;
-        if(d<0)d+=4*x+6;
-        else{d+=4*(x-y)+10;y--;}
+        if(d<0){
+            d=d+4*x+6;
+        }
+        else{
+            d=d+4*(x-y)+10;
+            y--;
+        }
         raster_circle_points(cr,cc,x,y);
     }
 }
@@ -186,10 +205,10 @@ int main(void){
             break;
         case CIRCLE:
             raster_circle(12,30,8);
-            raster_circle_points(12,30,3,4);
             break;
         case TRIANGLE:
-            raster_triangle(5,10,18,8,16,44);
+            /* draw a symmetric triangle centered horizontally */
+            raster_triangle(5, 30, 20, 10, 20, 50);
             break;
         default:
             break;
