@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <conio.h>
+#include <math.h>
 #define ROWS 25
 #define COLS 60
 #define BG_CHAR '_'
 #define DRAW_CHAR '*'
+#define CURSOR_CHAR '@'
 #define MAX_OBJECTS 100
 
 typedef enum{
@@ -66,6 +69,121 @@ static void plot(int r,int c){
     if(r>=0&&r<ROWS&&c>=0&&c<COLS)
         canvas[r][c]=DRAW_CHAR;
 }
+
+static void redraw_objects(void);
+
+static void clear_screen(void){
+    system("cls");
+}
+
+typedef enum{
+    KEY_NONE,
+    KEY_UP,
+    KEY_DOWN,
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_ENTER,
+    KEY_QUIT
+}InputKey;
+
+static InputKey read_input_key(void){
+    int ch=_getch();
+    if(ch==0||ch==224){
+        int arrow=_getch();
+        switch(arrow){
+            case 72: return KEY_UP;
+            case 80: return KEY_DOWN;
+            case 75: return KEY_LEFT;
+            case 77: return KEY_RIGHT;
+        }
+    }
+    else if(ch==13){
+        return KEY_ENTER;
+    }
+    else if(ch=='q'||ch=='Q'){
+        return KEY_QUIT;
+    }
+    else if(ch=='w'||ch=='W'){
+        return KEY_UP;
+    }
+    else if(ch=='s'||ch=='S'){
+        return KEY_DOWN;
+    }
+    else if(ch=='a'||ch=='A'){
+        return KEY_LEFT;
+    }
+    else if(ch=='d'||ch=='D'){
+        return KEY_RIGHT;
+    }
+    return KEY_NONE;
+}
+
+static void show_canvas_with_cursor(int cursor_r,int cursor_c){
+    for(int r=0;r<ROWS;++r){
+        for(int c=0;c<COLS;++c){
+            if(r==cursor_r&&c==cursor_c)
+                putchar(CURSOR_CHAR);
+            else
+                putchar(canvas[r][c]);
+        }
+        putchar('\n');
+    }
+}
+
+static int pick_point(int *pr,int *pc,const char *prompt){
+    int r=ROWS/2;
+    int c=COLS/2;
+    for(;;){
+        redraw_objects();
+        clear_screen();
+        printf("%s\n",prompt);
+        printf("Use arrow keys or WASD to move, Enter to select, Q to cancel.\n");
+        show_canvas_with_cursor(r,c);
+        InputKey key=read_input_key();
+        if(key==KEY_QUIT)
+            return 0;
+        if(key==KEY_ENTER){
+            *pr=r;
+            *pc=c;
+            return 1;
+        }
+        if(key==KEY_UP && r>0)
+            r--;
+        else if(key==KEY_DOWN && r<ROWS-1)
+            r++;
+        else if(key==KEY_LEFT && c>0)
+            c--;
+        else if(key==KEY_RIGHT && c<COLS-1)
+            c++;
+    }
+}
+
+static int pick_circle_center_and_radius(Object *obj){
+    int cr,cc;
+    if(!pick_point(&cr,&cc,"Select circle center."))
+        return 0;
+    int pr,pc;
+    if(!pick_point(&pr,&pc,"Select a point on the circle perimeter."))
+        return 0;
+    int dx=pr-cr;
+    int dy=pc-cc;
+    int radius=(int)(sqrt((double)(dx*dx+dy*dy))+0.5);
+    if(radius<1)
+        radius=1;
+    (*obj).params.circle.cr=cr;
+    (*obj).params.circle.cc=cc;
+    (*obj).params.circle.radius=radius;
+    return 1;
+}
+
+static int pick_two_points(int *r0,int *c0,int *r1,int *c1,const char *first_prompt,const char *second_prompt){
+    if(!pick_point(r0,c0,first_prompt))
+        return 0;
+    if(!pick_point(r1,c1,second_prompt))
+        return 0;
+    return 1;
+}
+
 static int read_int(const char *prompt,int lo,int hi){
     int v;
     for(;;){
@@ -90,6 +208,66 @@ static const char *shape_name(ShapeType t){
             return "Unknown";
     }
 }
+static void show_shape_menu(void){
+    printf("Choose a shape to raster:\n");
+    printf("  1) Line\n");
+    printf("  2) Rectangle\n");
+    printf("  3) Circle\n");
+    printf("  4) Triangle\n");
+}
+static void center_object(Object *obj){
+    int target_r = ROWS / 2;
+    int target_c = COLS / 2;
+    int dr = 0, dc = 0;
+
+    switch((*obj).type){
+        case LINE:{
+            int mid_r = ((*obj).params.line.r0 + (*obj).params.line.r1) / 2;
+            int mid_c = ((*obj).params.line.c0 + (*obj).params.line.c1) / 2;
+            dr = target_r - mid_r;
+            dc = target_c - mid_c;
+            (*obj).params.line.r0 += dr;
+            (*obj).params.line.c0 += dc;
+            (*obj).params.line.r1 += dr;
+            (*obj).params.line.c1 += dc;
+            break;
+        }
+        case RECTANGLE:{
+            int r0 = (*obj).params.rect.r0;
+            int r1 = (*obj).params.rect.r1;
+            int c0 = (*obj).params.rect.c0;
+            int c1 = (*obj).params.rect.c1;
+            int mid_r = (r0 + r1) / 2;
+            int mid_c = (c0 + c1) / 2;
+            dr = target_r - mid_r;
+            dc = target_c - mid_c;
+            (*obj).params.rect.r0 = r0 + dr;
+            (*obj).params.rect.c0 = c0 + dc;
+            (*obj).params.rect.r1 = r1 + dr;
+            (*obj).params.rect.c1 = c1 + dc;
+            break;
+        }
+        case TRIANGLE:{
+            int mid_r = ((*obj).params.triangle.r0 + (*obj).params.triangle.r1 + (*obj).params.triangle.r2) / 3;
+            int mid_c = ((*obj).params.triangle.c0 + (*obj).params.triangle.c1 + (*obj).params.triangle.c2) / 3;
+            dr = target_r - mid_r;
+            dc = target_c - mid_c;
+            (*obj).params.triangle.r0 += dr;
+            (*obj).params.triangle.c0 += dc;
+            (*obj).params.triangle.r1 += dr;
+            (*obj).params.triangle.c1 += dc;
+            (*obj).params.triangle.r2 += dr;
+            (*obj).params.triangle.c2 += dc;
+            break;
+        }
+        case CIRCLE:
+            (*obj).params.circle.cr = target_r;
+            (*obj).params.circle.cc = target_c;
+            break;
+        default:
+            break;
+    }
+}
 static void raster_line(int r0,int c0,int r1,int c1){
     int dr=absoluteValue(r1-r0),sr=getSign(r1-r0);
     int dc=absoluteValue(c1-c0),sc=getSign(c1-c0);
@@ -111,37 +289,28 @@ static void raster_line(int r0,int c0,int r1,int c1){
 }
 
 static void raster_circle_points(int cr,int cc,int x,int y){
-    if(x==0){
-        plot(cr,cc+y);
-        plot(cr,cc-y);
-        plot(cr+y,cc);
-        plot(cr-y,cc);
-    }
-    else if(x==y){
-        plot(cr+x,cc+y);
-        plot(cr-x,cc+y);
-        plot(cr+x,cc-y);
-        plot(cr-x,cc-y);
-    }
-    else{
-        plot(cr+x,cc+y);plot(cr-x,cc+y);
-        plot(cr+x,cc-y);plot(cr-x,cc-y);
-        plot(cr+y,cc+x);plot(cr-y,cc+x);
-        plot(cr+y,cc-x);plot(cr-y,cc-x);
-    }
+    plot(cr+x,cc+y);
+    plot(cr-x,cc+y);
+    plot(cr+x,cc-y);
+    plot(cr-x,cc-y);
+    plot(cr+y,cc+x);
+    plot(cr-y,cc+x);
+    plot(cr+y,cc-x);
+    plot(cr-y,cc-x);
 }
 
 static void raster_circle(int cr,int cc,int radius){
-    int x=0,y=radius,d=1-radius;
+    int x=0;
+    int y=radius;
+    int d=3-2*radius;
     raster_circle_points(cr,cc,x,y);
-    while(x<=y){
+    while(y>=x){
         x++;
-        if(d<0){
-            d=d+4*x+6;
-        }
-        else{
-            d=d+4*(x-y)+10;
+        if(d>0){
             y--;
+            d=d+4*(x-y)+10;
+        } else {
+            d=d+4*x+6;
         }
         raster_circle_points(cr,cc,x,y);
     }
@@ -225,6 +394,10 @@ static void show_canvas(void){
     }
 }
 
+static void display_picture(void){
+    show_canvas();
+}
+
 static void list_objects(void){
     if(object_count==0){
         printf("No objects in the picture.\n");
@@ -259,39 +432,62 @@ static void add_object(void){
         printf("*** Cannot add more than %d objects.\n",MAX_OBJECTS);
         return;
     }
+    show_shape_menu();
     ShapeType type=(ShapeType)read_int("Shape number",1,4);
     Object obj;
-    obj.id=next_id++;
     obj.type=type;
+    int r0,c0,r1,c1,r2,c2;
     switch(type){
         case LINE:
-            obj.params.line.r0=read_int("Start row",0,ROWS-1);
-            obj.params.line.c0=read_int("Start column",0,COLS-1);
-            obj.params.line.r1=read_int("End row",0,ROWS-1);
-            obj.params.line.c1=read_int("End column",0,COLS-1);
+            if(!pick_two_points(&r0,&c0,&r1,&c1,"Select start point for the line.","Select end point for the line.")){
+                printf("Line creation cancelled.\n");
+                return;
+            }
+            obj.params.line.r0=r0;
+            obj.params.line.c0=c0;
+            obj.params.line.r1=r1;
+            obj.params.line.c1=c1;
             break;
         case RECTANGLE:
-            obj.params.rect.r0=read_int("First corner row",0,ROWS-1);
-            obj.params.rect.c0=read_int("First corner column",0,COLS-1);
-            obj.params.rect.r1=read_int("Second corner row",0,ROWS-1);
-            obj.params.rect.c1=read_int("Second corner column",0,COLS-1);
+            if(!pick_two_points(&r0,&c0,&r1,&c1,"Select first corner of the rectangle.","Select opposite corner of the rectangle.")){
+                printf("Rectangle creation cancelled.\n");
+                return;
+            }
+            obj.params.rect.r0=r0;
+            obj.params.rect.c0=c0;
+            obj.params.rect.r1=r1;
+            obj.params.rect.c1=c1;
             break;
         case CIRCLE:
-            obj.params.circle.cr=read_int("Center row",0,ROWS-1);
-            obj.params.circle.cc=read_int("Center column",0,COLS-1);
-            obj.params.circle.radius=read_int("Radius",1,ROWS<COLS?ROWS:COLS);
+            if(!pick_circle_center_and_radius(&obj)){
+                printf("Circle creation cancelled.\n");
+                return;
+            }
             break;
         case TRIANGLE:
-            obj.params.triangle.r0=read_int("First vertex row",0,ROWS-1);
-            obj.params.triangle.c0=read_int("First vertex column",0,COLS-1);
-            obj.params.triangle.r1=read_int("Second vertex row",0,ROWS-1);
-            obj.params.triangle.c1=read_int("Second vertex column",0,COLS-1);
-            obj.params.triangle.r2=read_int("Third vertex row",0,ROWS-1);
-            obj.params.triangle.c2=read_int("Third vertex column",0,COLS-1);
+            if(!pick_point(&r0,&c0,"Select first vertex of the triangle.")){
+                printf("Triangle creation cancelled.\n");
+                return;
+            }
+            if(!pick_point(&r1,&c1,"Select second vertex of the triangle.")){
+                printf("Triangle creation cancelled.\n");
+                return;
+            }
+            if(!pick_point(&r2,&c2,"Select third vertex of the triangle.")){
+                printf("Triangle creation cancelled.\n");
+                return;
+            }
+            obj.params.triangle.r0=r0;
+            obj.params.triangle.c0=c0;
+            obj.params.triangle.r1=r1;
+            obj.params.triangle.c1=c1;
+            obj.params.triangle.r2=r2;
+            obj.params.triangle.c2=c2;
             break;
         default:
             break;
     }
+    obj.id = next_id++;
     objects[object_count++]=obj;
     printf("Added %s with id %d.\n",shape_name(type),obj.id);
 }
@@ -313,6 +509,73 @@ static void delete_object(void){
     printf("Deleted object %d.\n",id);
 }
 
+static void modify_object(void){
+    if(object_count==0){
+        printf("No objects to modify.\n");
+        return;
+    }
+    int id=read_int("Object id to modify",1,next_id-1);
+    int index=find_object_index(id);
+    if(index<0){
+        printf("*** No object with id %d.\n",id);
+        return;
+    }
+    Object *obj=&objects[index];
+    printf("Modifying %s id=%d\n",shape_name((*obj).type),(*obj).id);
+    int r0,c0,r1,c1,r2,c2;
+    switch((*obj).type){
+        case LINE:
+            if(!pick_two_points(&r0,&c0,&r1,&c1,"Select new start point for the line.","Select new end point for the line.")){
+                printf("Line modification cancelled.\n");
+                return;
+            }
+            (*obj).params.line.r0=r0;
+            (*obj).params.line.c0=c0;
+            (*obj).params.line.r1=r1;
+            (*obj).params.line.c1=c1;
+            break;
+        case RECTANGLE:
+            if(!pick_two_points(&r0,&c0,&r1,&c1,"Select new first corner of the rectangle.","Select new opposite corner of the rectangle.")){
+                printf("Rectangle modification cancelled.\n");
+                return;
+            }
+            (*obj).params.rect.r0=r0;
+            (*obj).params.rect.c0=c0;
+            (*obj).params.rect.r1=r1;
+            (*obj).params.rect.c1=c1;
+            break;
+        case CIRCLE:
+            if(!pick_circle_center_and_radius(obj)){
+                printf("Circle modification cancelled.\n");
+                return;
+            }
+            break;
+        case TRIANGLE:
+            if(!pick_point(&r0,&c0,"Select new first vertex of the triangle.")){
+                printf("Triangle modification cancelled.\n");
+                return;
+            }
+            if(!pick_point(&r1,&c1,"Select new second vertex of the triangle.")){
+                printf("Triangle modification cancelled.\n");
+                return;
+            }
+            if(!pick_point(&r2,&c2,"Select new third vertex of the triangle.")){
+                printf("Triangle modification cancelled.\n");
+                return;
+            }
+            (*obj).params.triangle.r0=r0;
+            (*obj).params.triangle.c0=c0;
+            (*obj).params.triangle.r1=r1;
+            (*obj).params.triangle.c1=c1;
+            (*obj).params.triangle.r2=r2;
+            (*obj).params.triangle.c2=c2;
+            break;
+        default:
+            break;
+    }
+    printf("Modified object %d.\n",id);
+}
+
 int main(void){
     int choice;
     clear_canvas();
@@ -321,30 +584,36 @@ int main(void){
         printf("\n2D Graphic Editor Menu:\n");
         printf("  1) Add object\n");
         printf("  2) Delete object\n");
-        printf("  3) List objects\n");
-        printf("  4) Render canvas\n");
-        printf("  5) Quit\n");
+        printf("  3) Modify object\n");
+        printf("  4) List objects\n");
+        printf("  5) Render canvas\n");
+        printf("  6) Quit\n");
 
-        choice=read_int("Menu choice",1,5);
+        choice=read_int("Menu choice",1,6);
         switch(choice){
             case 1:
                 add_object();
                 redraw_objects();
-                show_canvas();
+                display_picture();
                 break;
             case 2:
                 delete_object();
                 redraw_objects();
-                show_canvas();
+                display_picture();
                 break;
             case 3:
-                list_objects();
+                modify_object();
+                redraw_objects();
+                display_picture();
                 break;
             case 4:
-                redraw_objects();
-                show_canvas();
+                list_objects();
                 break;
             case 5:
+                redraw_objects();
+                display_picture();
+                break;
+            case 6:
                 printf("Exiting editor.\n");
                 return 0;
             default:
