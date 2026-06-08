@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#ifdef USE_CURSES
+#include <curses.h>
+#else
 #include <conio.h>
+#endif
 #include <math.h>
 #define ROWS 25
 #define COLS 60
@@ -48,6 +53,7 @@ char canvas[ROWS][COLS];
 Object objects[MAX_OBJECTS];
 int object_count=0;
 int next_id=1;
+int canvas_visible=0;
 static int absoluteValue(int x){
     if(x<0)
     {
@@ -71,6 +77,176 @@ static void plot(int r,int c){
 }
 
 static void redraw_objects(void);
+static const char *shape_name(ShapeType t);
+static void show_shape_menu(void);
+static void wait_for_key(void);
+
+#ifdef USE_CURSES
+static void init_ui(void){
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+}
+
+static void shutdown_ui(void){
+    endwin();
+}
+
+static void show_status(const char *fmt, ...){
+    va_list ap;
+    va_start(ap, fmt);
+    int row = ROWS + 4;
+    move(row, 0);
+    clrtoeol();
+    vw_printw(stdscr, fmt, ap);
+    va_end(ap);
+    refresh();
+}
+
+static void clear_screen(void){
+    clear();
+}
+
+typedef enum{
+    KEY_NONE,
+    KEY_UP,
+    KEY_DOWN,
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_ENTER,
+    KEY_QUIT
+}InputKey;
+
+static InputKey read_input_key(void){
+    int ch = getch();
+    switch(ch){
+        case KEY_UP: return KEY_UP;
+        case KEY_DOWN: return KEY_DOWN;
+        case KEY_LEFT: return KEY_LEFT;
+        case KEY_RIGHT: return KEY_RIGHT;
+        case 10:
+        case 13:
+            return KEY_ENTER;
+        case 'q':
+        case 'Q':
+            return KEY_QUIT;
+        case 'w':
+        case 'W':
+            return KEY_UP;
+        case 's':
+        case 'S':
+            return KEY_DOWN;
+        case 'a':
+        case 'A':
+            return KEY_LEFT;
+        case 'd':
+        case 'D':
+            return KEY_RIGHT;
+    }
+    return KEY_NONE;
+}
+
+static void show_canvas_with_cursor(int cursor_r,int cursor_c){
+    for(int r=0;r<ROWS;++r){
+        for(int c=0;c<COLS;++c){
+            char ch = (r==cursor_r && c==cursor_c) ? CURSOR_CHAR : canvas[r][c];
+            mvaddch(r + 2, c, ch);
+        }
+    }
+    refresh();
+}
+
+static void show_canvas(void){
+    for(int r=0;r<ROWS;++r){
+        for(int c=0;c<COLS;++c)
+            mvaddch(r, c, canvas[r][c]);
+    }
+    refresh();
+}
+
+static int read_int(const char *prompt,int lo,int hi){
+    char buf[32];
+    int v;
+    while(1){
+        mvprintw(ROWS + 3, 0, "  %s [%d..%d]: ", prompt, lo, hi);
+        clrtoeol();
+        echo();
+        nocbreak();
+        curs_set(1);
+        refresh();
+        getnstr(buf, sizeof(buf) - 1);
+        noecho();
+        cbreak();
+        curs_set(0);
+        if(sscanf(buf, "%d", &v) == 1 && v >= lo && v <= hi)
+            return v;
+        mvprintw(ROWS + 4, 0, "    *** Out of range or invalid - try again.");
+        clrtoeol();
+        refresh();
+    }
+}
+
+static void show_shape_menu(void){
+    mvprintw(ROWS + 2, 0, "Choose a shape to raster:");
+    mvprintw(ROWS + 3, 0, "  1) Line");
+    mvprintw(ROWS + 4, 0, "  2) Rectangle");
+    mvprintw(ROWS + 5, 0, "  3) Circle");
+    mvprintw(ROWS + 6, 0, "  4) Triangle");
+    refresh();
+}
+
+static void list_objects(void){
+    int base_row = ROWS + 2;
+    if(object_count==0){
+        mvprintw(base_row, 0, "No objects in the picture.");
+        clrtoeol();
+        refresh();
+        return;
+    }
+    mvprintw(base_row, 0, "Objects in the picture:");
+    clrtoeol();
+    for(int i=0;i<object_count && i<10;++i){
+        Object obj = objects[i];
+        int row = base_row + 1 + i;
+        move(row, 0);
+        clrtoeol();
+        printw("  id=%d %s ", obj.id, shape_name(obj.type));
+        switch(obj.type){
+            case LINE:
+                printw("from (%d,%d) to (%d,%d)", obj.params.line.r0, obj.params.line.c0, obj.params.line.r1, obj.params.line.c1);
+                break;
+            case RECTANGLE:
+                printw("corner1 (%d,%d) corner2 (%d,%d)", obj.params.rect.r0, obj.params.rect.c0, obj.params.rect.r1, obj.params.rect.c1);
+                break;
+            case CIRCLE:
+                printw("center (%d,%d) radius %d", obj.params.circle.cr, obj.params.circle.cc, obj.params.circle.radius);
+                break;
+            case TRIANGLE:
+                printw("(%d,%d) (%d,%d) (%d,%d)", obj.params.triangle.r0, obj.params.triangle.c0, obj.params.triangle.r1, obj.params.triangle.c1, obj.params.triangle.r2, obj.params.triangle.c2);
+                break;
+            default:
+                break;
+        }
+    }
+    if(object_count > 10){
+        mvprintw(base_row + 11, 0, "  ...and %d more objects.", object_count - 10);
+        clrtoeol();
+    }
+    refresh();
+}
+
+#else
+static void init_ui(void){ }
+static void shutdown_ui(void){ }
+static void show_status(const char *fmt, ...){
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    putchar('\n');
+    va_end(ap);
+}
 
 static void clear_screen(void){
     system("cls");
@@ -121,7 +297,7 @@ static InputKey read_input_key(void){
 static void show_canvas_with_cursor(int cursor_r,int cursor_c){
     for(int r=0;r<ROWS;++r){
         for(int c=0;c<COLS;++c){
-            if(r==cursor_r&&c==cursor_c)
+            if(r==cursor_r && c==cursor_c)
                 putchar(CURSOR_CHAR);
             else
                 putchar(canvas[r][c]);
@@ -130,15 +306,81 @@ static void show_canvas_with_cursor(int cursor_r,int cursor_c){
     }
 }
 
+static void show_canvas(void){
+    for(int r=0;r<ROWS;++r){
+        for(int c=0;c<COLS;++c)
+            putchar(canvas[r][c]);
+        putchar('\n');
+    }
+}
+
+static int read_int(const char *prompt,int lo,int hi){
+    int v;
+    for(;;){
+        printf("  %s [%d..%d]: ",prompt,lo,hi);
+        if(scanf("%d",&v)==1&&v>=lo&&v<=hi)
+            return v;
+        printf("    *** Out of range or invalid - try again.\n");
+        while(getchar()!='\n');
+    }
+}
+
+static void show_shape_menu(void){
+    printf("Choose a shape to raster:\n");
+    printf("  1) Line\n");
+    printf("  2) Rectangle\n");
+    printf("  3) Circle\n");
+    printf("  4) Triangle\n");
+}
+
+static void list_objects(void){
+    if(object_count==0){
+        printf("No objects in the picture.\n");
+        return;
+    }
+    printf("Objects in the picture:\n");
+    for(int i=0;i<object_count;++i){
+        Object obj=objects[i];
+        printf("  id=%d %s ",obj.id,shape_name(obj.type));
+        switch(obj.type){
+            case LINE:
+                printf("from (%d,%d) to (%d,%d)",obj.params.line.r0,obj.params.line.c0,obj.params.line.r1,obj.params.line.c1);
+                break;
+            case RECTANGLE:
+                printf("corner1 (%d,%d) corner2 (%d,%d)",obj.params.rect.r0,obj.params.rect.c0,obj.params.rect.r1,obj.params.rect.c1);
+                break;
+            case CIRCLE:
+                printf("center (%d,%d) radius %d",obj.params.circle.cr,obj.params.circle.cc,obj.params.circle.radius);
+                break;
+            case TRIANGLE:
+                printf("(%d,%d) (%d,%d) (%d,%d)",obj.params.triangle.r0,obj.params.triangle.c0,obj.params.triangle.r1,obj.params.triangle.c1,obj.params.triangle.r2,obj.params.triangle.c2);
+                break;
+            default:
+                break;
+        }
+        putchar('\n');
+    }
+}
+#endif
+
 static int pick_point(int *pr,int *pc,const char *prompt){
     int r=ROWS/2;
     int c=COLS/2;
     for(;;){
         redraw_objects();
+#ifdef USE_CURSES
+        clear_screen();
+        mvprintw(0, 0, "%s", prompt);
+        mvprintw(1, 0, "Move the cursor from the canvas center.");
+        mvprintw(2, 0, "Use arrow keys or WASD to move, Enter to select, Q to cancel.");
+        show_canvas_with_cursor(r,c);
+#else
         clear_screen();
         printf("%s\n",prompt);
+        printf("Move the cursor from the canvas center.\n");
         printf("Use arrow keys or WASD to move, Enter to select, Q to cancel.\n");
         show_canvas_with_cursor(r,c);
+#endif
         InputKey key=read_input_key();
         if(key==KEY_QUIT)
             return 0;
@@ -176,6 +418,14 @@ static int pick_circle_center_and_radius(Object *obj){
     return 1;
 }
 
+static void wait_for_key(void){
+#ifdef USE_CURSES
+    getch();
+#else
+    _getch();
+#endif
+}
+
 static int pick_two_points(int *r0,int *c0,int *r1,int *c1,const char *first_prompt,const char *second_prompt){
     if(!pick_point(r0,c0,first_prompt))
         return 0;
@@ -184,16 +434,6 @@ static int pick_two_points(int *r0,int *c0,int *r1,int *c1,const char *first_pro
     return 1;
 }
 
-static int read_int(const char *prompt,int lo,int hi){
-    int v;
-    for(;;){
-        printf("  %s [%d..%d]: ",prompt,lo,hi);
-        if(scanf("%d",&v)==1&&v>=lo&&v<=hi)
-            return v;
-        printf("    *** Out of range or invalid - try again.\n");
-        while(getchar()!='\n');
-    }
-}
 static const char *shape_name(ShapeType t){
     switch(t){
         case LINE:
@@ -207,13 +447,6 @@ static const char *shape_name(ShapeType t){
         default:
             return "Unknown";
     }
-}
-static void show_shape_menu(void){
-    printf("Choose a shape to raster:\n");
-    printf("  1) Line\n");
-    printf("  2) Rectangle\n");
-    printf("  3) Circle\n");
-    printf("  4) Triangle\n");
 }
 static void center_object(Object *obj){
     int target_r = ROWS / 2;
@@ -269,21 +502,24 @@ static void center_object(Object *obj){
     }
 }
 static void raster_line(int r0,int c0,int r1,int c1){
-    int dr=absoluteValue(r1-r0),sr=getSign(r1-r0);
-    int dc=absoluteValue(c1-c0),sc=getSign(c1-c0);
-    int err=dr-dc;
+    int dx = absoluteValue(c1 - c0);
+    int sx = getSign(c1 - c0);
+    int dy = -absoluteValue(r1 - r0);
+    int sy = getSign(r1 - r0);
+    int err = dx + dy;
+
     for(;;){
         plot(r0,c0);
-        if(r0==r1&&c0==c1)
-        break;
-        int e2=2*err;
-        if(e2>-dc){
-        err-=dc;
-        r0+=sr;
+        if(r0==r1 && c0==c1)
+            break;
+        int e2 = 2 * err;
+        if(e2 >= dy){
+            err += dy;
+            c0 += sx;
         }
-        if(e2<dr){
-        err+=dr;
-        c0+=sc;
+        if(e2 <= dx){
+            err += dx;
+            r0 += sy;
         }
     }
 }
@@ -300,19 +536,20 @@ static void raster_circle_points(int cr,int cc,int x,int y){
 }
 
 static void raster_circle(int cr,int cc,int radius){
-    int x=0;
-    int y=radius;
-    int d=3-2*radius;
-    raster_circle_points(cr,cc,x,y);
-    while(y>=x){
-        x++;
-        if(d>0){
-            y--;
-            d=d+4*(x-y)+10;
-        } else {
-            d=d+4*x+6;
+    double r = (double)radius;
+    double min_r = r - 0.5;
+    double max_r = r + 0.5;
+    double min_r2 = min_r * min_r;
+    double max_r2 = max_r * max_r;
+
+    for(int rr = cr - radius; rr <= cr + radius; ++rr){
+        for(int cc2 = cc - radius; cc2 <= cc + radius; ++cc2){
+            double dy = (double)(rr - cr);
+            double dx = (double)(cc2 - cc);
+            double dist2 = dx * dx + dy * dy;
+            if(dist2 >= min_r2 && dist2 <= max_r2)
+                plot(rr, cc2);
         }
-        raster_circle_points(cr,cc,x,y);
     }
 }
 
@@ -386,50 +623,15 @@ static void redraw_objects(void){
         draw_object(objects[i]);
 }
 
-static void show_canvas(void){
-    for(int r=0;r<ROWS;++r){
-        for(int c=0;c<COLS;++c)
-            putchar(canvas[r][c]);
-        putchar('\n');
-    }
-}
-
 static void display_picture(void){
-    show_canvas();
-}
-
-static void list_objects(void){
-    if(object_count==0){
-        printf("No objects in the picture.\n");
-        return;
-    }
-    printf("Objects in the picture:\n");
-    for(int i=0;i<object_count;++i){
-        Object obj=objects[i];
-        printf("  id=%d %s ",obj.id,shape_name(obj.type));
-        switch(obj.type){
-            case LINE:
-                printf("from (%d,%d) to (%d,%d)",obj.params.line.r0,obj.params.line.c0,obj.params.line.r1,obj.params.line.c1);
-                break;
-            case RECTANGLE:
-                printf("corner1 (%d,%d) corner2 (%d,%d)",obj.params.rect.r0,obj.params.rect.c0,obj.params.rect.r1,obj.params.rect.c1);
-                break;
-            case CIRCLE:
-                printf("center (%d,%d) radius %d",obj.params.circle.cr,obj.params.circle.cc,obj.params.circle.radius);
-                break;
-            case TRIANGLE:
-                printf("(%d,%d) (%d,%d) (%d,%d)",obj.params.triangle.r0,obj.params.triangle.c0,obj.params.triangle.r1,obj.params.triangle.c1,obj.params.triangle.r2,obj.params.triangle.c2);
-                break;
-            default:
-                break;
-        }
-        putchar('\n');
-    }
+    clear_screen();
+    if(canvas_visible)
+        show_canvas();
 }
 
 static void add_object(void){
     if(object_count>=MAX_OBJECTS){
-        printf("*** Cannot add more than %d objects.\n",MAX_OBJECTS);
+        show_status("*** Cannot add more than %d objects.",MAX_OBJECTS);
         return;
     }
     show_shape_menu();
@@ -440,7 +642,7 @@ static void add_object(void){
     switch(type){
         case LINE:
             if(!pick_two_points(&r0,&c0,&r1,&c1,"Select start point for the line.","Select end point for the line.")){
-                printf("Line creation cancelled.\n");
+                show_status("Line creation cancelled.");
                 return;
             }
             obj.params.line.r0=r0;
@@ -450,7 +652,7 @@ static void add_object(void){
             break;
         case RECTANGLE:
             if(!pick_two_points(&r0,&c0,&r1,&c1,"Select first corner of the rectangle.","Select opposite corner of the rectangle.")){
-                printf("Rectangle creation cancelled.\n");
+                show_status("Rectangle creation cancelled.");
                 return;
             }
             obj.params.rect.r0=r0;
@@ -460,21 +662,21 @@ static void add_object(void){
             break;
         case CIRCLE:
             if(!pick_circle_center_and_radius(&obj)){
-                printf("Circle creation cancelled.\n");
+                show_status("Circle creation cancelled.");
                 return;
             }
             break;
         case TRIANGLE:
             if(!pick_point(&r0,&c0,"Select first vertex of the triangle.")){
-                printf("Triangle creation cancelled.\n");
+                show_status("Triangle creation cancelled.");
                 return;
             }
             if(!pick_point(&r1,&c1,"Select second vertex of the triangle.")){
-                printf("Triangle creation cancelled.\n");
+                show_status("Triangle creation cancelled.");
                 return;
             }
             if(!pick_point(&r2,&c2,"Select third vertex of the triangle.")){
-                printf("Triangle creation cancelled.\n");
+                show_status("Triangle creation cancelled.");
                 return;
             }
             obj.params.triangle.r0=r0;
@@ -488,15 +690,17 @@ static void add_object(void){
             break;
     }
     obj.id = next_id++;
-    objects[object_count++]=obj;
-    printf("Added %s with id %d.\n",shape_name(type),obj.id);
+    objects[object_count++] = obj;
+    canvas_visible = 1;
+    show_status("Added %s with id %d.", shape_name(type), obj.id);
 }
 
 static void delete_object(void){
     if(object_count==0){
-        printf("No objects to delete.\n");
+        show_status("No objects to delete.");
         return;
     }
+    list_objects();
     int id=read_int("Object id to delete",1,next_id-1);
     int index=find_object_index(id);
     if(index<0){
@@ -506,14 +710,16 @@ static void delete_object(void){
     for(int i=index;i<object_count-1;++i)
         objects[i]=objects[i+1];
     object_count--;
-    printf("Deleted object %d.\n",id);
+    canvas_visible = (object_count > 0);
+    show_status("Deleted object %d.", id);
 }
 
 static void modify_object(void){
     if(object_count==0){
-        printf("No objects to modify.\n");
+        show_status("No objects to modify.");
         return;
     }
+    list_objects();
     int id=read_int("Object id to modify",1,next_id-1);
     int index=find_object_index(id);
     if(index<0){
@@ -521,12 +727,12 @@ static void modify_object(void){
         return;
     }
     Object *obj=&objects[index];
-    printf("Modifying %s id=%d\n",shape_name((*obj).type),(*obj).id);
+    show_status("Modifying %s id=%d",shape_name((*obj).type),(*obj).id);
     int r0,c0,r1,c1,r2,c2;
     switch((*obj).type){
         case LINE:
             if(!pick_two_points(&r0,&c0,&r1,&c1,"Select new start point for the line.","Select new end point for the line.")){
-                printf("Line modification cancelled.\n");
+                show_status("Line modification cancelled.");
                 return;
             }
             (*obj).params.line.r0=r0;
@@ -536,7 +742,7 @@ static void modify_object(void){
             break;
         case RECTANGLE:
             if(!pick_two_points(&r0,&c0,&r1,&c1,"Select new first corner of the rectangle.","Select new opposite corner of the rectangle.")){
-                printf("Rectangle modification cancelled.\n");
+                show_status("Rectangle modification cancelled.");
                 return;
             }
             (*obj).params.rect.r0=r0;
@@ -546,21 +752,21 @@ static void modify_object(void){
             break;
         case CIRCLE:
             if(!pick_circle_center_and_radius(obj)){
-                printf("Circle modification cancelled.\n");
+                show_status("Circle modification cancelled.");
                 return;
             }
             break;
         case TRIANGLE:
             if(!pick_point(&r0,&c0,"Select new first vertex of the triangle.")){
-                printf("Triangle modification cancelled.\n");
+                show_status("Triangle modification cancelled.");
                 return;
             }
             if(!pick_point(&r1,&c1,"Select new second vertex of the triangle.")){
-                printf("Triangle modification cancelled.\n");
+                show_status("Triangle modification cancelled.");
                 return;
             }
             if(!pick_point(&r2,&c2,"Select new third vertex of the triangle.")){
-                printf("Triangle modification cancelled.\n");
+                show_status("Triangle modification cancelled.");
                 return;
             }
             (*obj).params.triangle.r0=r0;
@@ -573,38 +779,65 @@ static void modify_object(void){
         default:
             break;
     }
-    printf("Modified object %d.\n",id);
+    show_status("Modified object %d.", id);
+    canvas_visible = 1;
 }
 
 int main(void){
     int choice;
+    init_ui();
     clear_canvas();
 
     for(;;){
-        printf("\n2D Graphic Editor Menu:\n");
+        clear_screen();
+        redraw_objects();
+#ifdef USE_CURSES
+        if(canvas_visible)
+            show_canvas();
+        mvprintw(ROWS + 1, 0, "2D Graphic Editor Menu:");
+        mvprintw(ROWS + 2, 0, "  1) Add object");
+        mvprintw(ROWS + 3, 0, "  2) Delete object");
+        mvprintw(ROWS + 4, 0, "  3) Modify object");
+        mvprintw(ROWS + 5, 0, "  4) List objects");
+        mvprintw(ROWS + 6, 0, "  5) Render canvas");
+        mvprintw(ROWS + 7, 0, "  6) Quit");
+        refresh();
+#else
+        if(canvas_visible)
+            show_canvas();
+        if(canvas_visible)
+            printf("\n");
+        printf("2D Graphic Editor Menu:\n");
         printf("  1) Add object\n");
         printf("  2) Delete object\n");
         printf("  3) Modify object\n");
         printf("  4) List objects\n");
         printf("  5) Render canvas\n");
         printf("  6) Quit\n");
+#endif
 
-        choice=read_int("Menu choice",1,6);
+        choice = read_int("Menu choice", 1, 6);
         switch(choice){
             case 1:
                 add_object();
                 redraw_objects();
                 display_picture();
+                show_status("Press any key to continue...");
+                wait_for_key();
                 break;
             case 2:
                 delete_object();
                 redraw_objects();
                 display_picture();
+                show_status("Press any key to continue...");
+                wait_for_key();
                 break;
             case 3:
                 modify_object();
                 redraw_objects();
                 display_picture();
+                show_status("Press any key to continue...");
+                wait_for_key();
                 break;
             case 4:
                 list_objects();
@@ -612,9 +845,12 @@ int main(void){
             case 5:
                 redraw_objects();
                 display_picture();
+                show_status("Press any key to continue...");
+                wait_for_key();
                 break;
             case 6:
-                printf("Exiting editor.\n");
+                show_status("Exiting editor.");
+                shutdown_ui();
                 return 0;
             default:
                 break;
