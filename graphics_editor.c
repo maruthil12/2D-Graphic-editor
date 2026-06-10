@@ -79,6 +79,8 @@ static void plot(int r,int c){
 static void redraw_objects(void);
 static const char *shape_name(ShapeType t);
 static void show_shape_menu(void);
+static void show_canvas_with_cursor(int cursor_r,int cursor_c,int fixed_count,const int fixed_r[],const int fixed_c[],char fixed_char);
+static int pick_point(int *pr,int *pc,const char *prompt,int fixed_count,const int fixed_r[],const int fixed_c[],char fixed_char);
 static void wait_for_key(void);
 
 #ifdef USE_CURSES
@@ -97,7 +99,7 @@ static void shutdown_ui(void){
 static void show_status(const char *fmt, ...){
     va_list ap;
     va_start(ap, fmt);
-    int row = ROWS + 4;
+    int row = ROWS + 13;
     move(row, 0);
     clrtoeol();
     vw_printw(stdscr, fmt, ap);
@@ -148,21 +150,54 @@ static InputKey read_input_key(void){
     return KEY_NONE;
 }
 
-static void show_canvas_with_cursor(int cursor_r,int cursor_c){
+static void show_canvas_with_cursor(int cursor_r,int cursor_c,int fixed_count,const int fixed_r[],const int fixed_c[],char fixed_char){
+    int width = COLS + 2;
+    mvaddch(0, 0, '+');
+    mvaddch(0, width - 1, '+');
+    for(int c=1;c<width-1;++c)
+        mvaddch(0, c, '-');
+    for(int r=1;r<=ROWS;++r){
+        mvaddch(r, 0, '|');
+        mvaddch(r, width - 1, '|');
+    }
+    mvaddch(ROWS + 1, 0, '+');
+    mvaddch(ROWS + 1, width - 1, '+');
+    for(int c=1;c<width-1;++c)
+        mvaddch(ROWS + 1, c, '-');
+
     for(int r=0;r<ROWS;++r){
         for(int c=0;c<COLS;++c){
-            char ch = (r==cursor_r && c==cursor_c) ? CURSOR_CHAR : canvas[r][c];
-            mvaddch(r + 2, c, ch);
+            char ch = canvas[r][c];
+            for(int i=0;i<fixed_count;++i){
+                if(r==fixed_r[i] && c==fixed_c[i]){
+                    ch = fixed_char;
+                    break;
+                }
+            }
+            if(r==cursor_r && c==cursor_c)
+                ch = CURSOR_CHAR;
+            mvaddch(r + 1, c + 1, ch);
         }
     }
     refresh();
 }
 
 static void show_canvas(void){
-    for(int r=0;r<ROWS;++r){
+    int width = COLS + 2;
+    mvaddch(0, 0, '+');
+    mvaddch(0, width - 1, '+');
+    for(int c=1;c<width-1;++c)
+        mvaddch(0, c, '-');
+    for(int r=1;r<=ROWS;++r){
+        mvaddch(r, 0, '|');
+        mvaddch(r, width - 1, '|');
         for(int c=0;c<COLS;++c)
-            mvaddch(r, c, canvas[r][c]);
+            mvaddch(r, c + 1, canvas[r][c]);
     }
+    mvaddch(ROWS + 1, 0, '+');
+    mvaddch(ROWS + 1, width - 1, '+');
+    for(int c=1;c<width-1;++c)
+        mvaddch(ROWS + 1, c, '-');
     refresh();
 }
 
@@ -170,7 +205,7 @@ static int read_int(const char *prompt,int lo,int hi){
     char buf[32];
     int v;
     while(1){
-        mvprintw(ROWS + 3, 0, "  %s [%d..%d]: ", prompt, lo, hi);
+        mvprintw(ROWS + 11, 0, "  %s [%d..%d]: ", prompt, lo, hi);
         clrtoeol();
         echo();
         nocbreak();
@@ -182,23 +217,23 @@ static int read_int(const char *prompt,int lo,int hi){
         curs_set(0);
         if(sscanf(buf, "%d", &v) == 1 && v >= lo && v <= hi)
             return v;
-        mvprintw(ROWS + 4, 0, "    *** Out of range or invalid - try again.");
+        mvprintw(ROWS + 12, 0, "    *** Out of range or invalid - try again.");
         clrtoeol();
         refresh();
     }
 }
 
 static void show_shape_menu(void){
-    mvprintw(ROWS + 2, 0, "Choose a shape to raster:");
-    mvprintw(ROWS + 3, 0, "  1) Line");
-    mvprintw(ROWS + 4, 0, "  2) Rectangle");
-    mvprintw(ROWS + 5, 0, "  3) Circle");
-    mvprintw(ROWS + 6, 0, "  4) Triangle");
+    mvprintw(ROWS + 4, 0, "Choose a shape to raster:");
+    mvprintw(ROWS + 5, 0, "  1) Line");
+    mvprintw(ROWS + 6, 0, "  2) Rectangle");
+    mvprintw(ROWS + 7, 0, "  3) Circle");
+    mvprintw(ROWS + 8, 0, "  4) Triangle");
     refresh();
 }
 
 static void list_objects(void){
-    int base_row = ROWS + 2;
+    int base_row = ROWS + 4;
     if(object_count==0){
         mvprintw(base_row, 0, "No objects in the picture.");
         clrtoeol();
@@ -294,24 +329,58 @@ static InputKey read_input_key(void){
     return KEY_NONE;
 }
 
-static void show_canvas_with_cursor(int cursor_r,int cursor_c){
+static void show_canvas_with_cursor(int cursor_r,int cursor_c,int fixed_count,const int fixed_r[],const int fixed_c[],char fixed_char){
+    int width = COLS + 2;
+    putchar('+');
+    for(int c=1;c<width-1;++c)
+        putchar('-');
+    putchar('+');
+    putchar('\n');
+
     for(int r=0;r<ROWS;++r){
+        putchar('|');
         for(int c=0;c<COLS;++c){
+            char ch = canvas[r][c];
+            for(int i=0;i<fixed_count;++i){
+                if(r==fixed_r[i] && c==fixed_c[i]){
+                    ch = fixed_char;
+                    break;
+                }
+            }
             if(r==cursor_r && c==cursor_c)
-                putchar(CURSOR_CHAR);
-            else
-                putchar(canvas[r][c]);
+                ch = CURSOR_CHAR;
+            putchar(ch);
         }
+        putchar('|');
         putchar('\n');
     }
+
+    putchar('+');
+    for(int c=1;c<width-1;++c)
+        putchar('-');
+    putchar('+');
+    putchar('\n');
 }
 
 static void show_canvas(void){
+    int width = COLS + 2;
+    putchar('+');
+    for(int c=1;c<width-1;++c)
+        putchar('-');
+    putchar('+');
+    putchar('\n');
     for(int r=0;r<ROWS;++r){
+        putchar('|');
         for(int c=0;c<COLS;++c)
             putchar(canvas[r][c]);
+        putchar('|');
         putchar('\n');
     }
+    putchar('+');
+    for(int c=1;c<width-1;++c)
+        putchar('-');
+    putchar('+');
+    putchar('\n');
 }
 
 static int read_int(const char *prompt,int lo,int hi){
@@ -363,7 +432,7 @@ static void list_objects(void){
 }
 #endif
 
-static int pick_point(int *pr,int *pc,const char *prompt){
+static int pick_point(int *pr,int *pc,const char *prompt,int fixed_count,const int fixed_r[],const int fixed_c[],char fixed_char){
     int r=ROWS/2;
     int c=COLS/2;
     for(;;){
@@ -373,13 +442,13 @@ static int pick_point(int *pr,int *pc,const char *prompt){
         mvprintw(0, 0, "%s", prompt);
         mvprintw(1, 0, "Move the cursor from the canvas center.");
         mvprintw(2, 0, "Use arrow keys or WASD to move, Enter to select, Q to cancel.");
-        show_canvas_with_cursor(r,c);
+        show_canvas_with_cursor(r,c,fixed_count,fixed_r,fixed_c,fixed_char);
 #else
         clear_screen();
         printf("%s\n",prompt);
         printf("Move the cursor from the canvas center.\n");
         printf("Use arrow keys or WASD to move, Enter to select, Q to cancel.\n");
-        show_canvas_with_cursor(r,c);
+        show_canvas_with_cursor(r,c,fixed_count,fixed_r,fixed_c,fixed_char);
 #endif
         InputKey key=read_input_key();
         if(key==KEY_QUIT)
@@ -402,10 +471,10 @@ static int pick_point(int *pr,int *pc,const char *prompt){
 
 static int pick_circle_center_and_radius(Object *obj){
     int cr,cc;
-    if(!pick_point(&cr,&cc,"Select circle center."))
+    if(!pick_point(&cr,&cc,"Select circle center.",0,NULL,NULL,0))
         return 0;
     int pr,pc;
-    if(!pick_point(&pr,&pc,"Select a point on the circle perimeter."))
+    if(!pick_point(&pr,&pc,"Select a point on the circle perimeter.",1,&cr,&cc,'*'))
         return 0;
     int dx=pr-cr;
     int dy=pc-cc;
@@ -427,9 +496,9 @@ static void wait_for_key(void){
 }
 
 static int pick_two_points(int *r0,int *c0,int *r1,int *c1,const char *first_prompt,const char *second_prompt){
-    if(!pick_point(r0,c0,first_prompt))
+    if(!pick_point(r0,c0,first_prompt,0,NULL,NULL,0))
         return 0;
-    if(!pick_point(r1,c1,second_prompt))
+    if(!pick_point(r1,c1,second_prompt,1,r0,c0,'*'))
         return 0;
     return 1;
 }
@@ -448,76 +517,23 @@ static const char *shape_name(ShapeType t){
             return "Unknown";
     }
 }
-static void center_object(Object *obj){
-    int target_r = ROWS / 2;
-    int target_c = COLS / 2;
-    int dr = 0, dc = 0;
-
-    switch((*obj).type){
-        case LINE:{
-            int mid_r = ((*obj).params.line.r0 + (*obj).params.line.r1) / 2;
-            int mid_c = ((*obj).params.line.c0 + (*obj).params.line.c1) / 2;
-            dr = target_r - mid_r;
-            dc = target_c - mid_c;
-            (*obj).params.line.r0 += dr;
-            (*obj).params.line.c0 += dc;
-            (*obj).params.line.r1 += dr;
-            (*obj).params.line.c1 += dc;
-            break;
-        }
-        case RECTANGLE:{
-            int r0 = (*obj).params.rect.r0;
-            int r1 = (*obj).params.rect.r1;
-            int c0 = (*obj).params.rect.c0;
-            int c1 = (*obj).params.rect.c1;
-            int mid_r = (r0 + r1) / 2;
-            int mid_c = (c0 + c1) / 2;
-            dr = target_r - mid_r;
-            dc = target_c - mid_c;
-            (*obj).params.rect.r0 = r0 + dr;
-            (*obj).params.rect.c0 = c0 + dc;
-            (*obj).params.rect.r1 = r1 + dr;
-            (*obj).params.rect.c1 = c1 + dc;
-            break;
-        }
-        case TRIANGLE:{
-            int mid_r = ((*obj).params.triangle.r0 + (*obj).params.triangle.r1 + (*obj).params.triangle.r2) / 3;
-            int mid_c = ((*obj).params.triangle.c0 + (*obj).params.triangle.c1 + (*obj).params.triangle.c2) / 3;
-            dr = target_r - mid_r;
-            dc = target_c - mid_c;
-            (*obj).params.triangle.r0 += dr;
-            (*obj).params.triangle.c0 += dc;
-            (*obj).params.triangle.r1 += dr;
-            (*obj).params.triangle.c1 += dc;
-            (*obj).params.triangle.r2 += dr;
-            (*obj).params.triangle.c2 += dc;
-            break;
-        }
-        case CIRCLE:
-            (*obj).params.circle.cr = target_r;
-            (*obj).params.circle.cc = target_c;
-            break;
-        default:
-            break;
-    }
-}
 static void raster_line(int r0,int c0,int r1,int c1){
     int dx = absoluteValue(c1 - c0);
     int sx = getSign(c1 - c0);
-    int dy = -absoluteValue(r1 - r0);
+    int dy = absoluteValue(r1 - r0);
     int sy = getSign(r1 - r0);
-    int err = dx + dy;
+    int err = dx - dy;
 
     for(;;){
-        plot(r0,c0);
-        if(r0==r1 && c0==c1)
+        plot(r0, c0);
+        if(r0 == r1 && c0 == c1)
             break;
-        int e2 = 2 * err;
-        if(e2 >= dy){
-            err += dy;
+        int e2 = err + err;
+        if(e2 > -dy){
+            err -= dy;
             c0 += sx;
         }
-        if(e2 <= dx){
+        if(e2 < dx){
             err += dx;
             r0 += sy;
         }
@@ -525,31 +541,31 @@ static void raster_line(int r0,int c0,int r1,int c1){
 }
 
 static void raster_circle_points(int cr,int cc,int x,int y){
-    plot(cr+x,cc+y);
-    plot(cr-x,cc+y);
-    plot(cr+x,cc-y);
-    plot(cr-x,cc-y);
-    plot(cr+y,cc+x);
-    plot(cr-y,cc+x);
-    plot(cr+y,cc-x);
-    plot(cr-y,cc-x);
+    plot(cr + x, cc + y);
+    plot(cr - x, cc + y);
+    plot(cr + x, cc - y);
+    plot(cr - x, cc - y);
+    plot(cr + y, cc + x);
+    plot(cr - y, cc + x);
+    plot(cr + y, cc - x);
+    plot(cr - y, cc - x);
 }
 
 static void raster_circle(int cr,int cc,int radius){
-    double r = (double)radius;
-    double min_r = r - 0.5;
-    double max_r = r + 0.5;
-    double min_r2 = min_r * min_r;
-    double max_r2 = max_r * max_r;
+    int x = 0;
+    int y = radius;
+    int d = 1 - radius;
 
-    for(int rr = cr - radius; rr <= cr + radius; ++rr){
-        for(int cc2 = cc - radius; cc2 <= cc + radius; ++cc2){
-            double dy = (double)(rr - cr);
-            double dx = (double)(cc2 - cc);
-            double dist2 = dx * dx + dy * dy;
-            if(dist2 >= min_r2 && dist2 <= max_r2)
-                plot(rr, cc2);
+    raster_circle_points(cr, cc, x, y);
+    while(y > x){
+        if(d < 0){
+            d += 2 * x + 3;
+        } else {
+            d += 2 * (x - y) + 5;
+            y--;
         }
+        x++;
+        raster_circle_points(cr, cc, x, y);
     }
 }
 
@@ -667,17 +683,21 @@ static void add_object(void){
             }
             break;
         case TRIANGLE:
-            if(!pick_point(&r0,&c0,"Select first vertex of the triangle.")){
+            if(!pick_point(&r0,&c0,"Select first vertex of the triangle.",0,NULL,NULL,0)){
                 show_status("Triangle creation cancelled.");
                 return;
             }
-            if(!pick_point(&r1,&c1,"Select second vertex of the triangle.")){
+            if(!pick_point(&r1,&c1,"Select second vertex of the triangle.",1,&r0,&c0,'*')){
                 show_status("Triangle creation cancelled.");
                 return;
             }
-            if(!pick_point(&r2,&c2,"Select third vertex of the triangle.")){
-                show_status("Triangle creation cancelled.");
-                return;
+            {
+                int fixed_r[2] = {r0, r1};
+                int fixed_c[2] = {c0, c1};
+                if(!pick_point(&r2,&c2,"Select third vertex of the triangle.",2,fixed_r,fixed_c,'*')){
+                    show_status("Triangle creation cancelled.");
+                    return;
+                }
             }
             obj.params.triangle.r0=r0;
             obj.params.triangle.c0=c0;
@@ -757,17 +777,21 @@ static void modify_object(void){
             }
             break;
         case TRIANGLE:
-            if(!pick_point(&r0,&c0,"Select new first vertex of the triangle.")){
+            if(!pick_point(&r0,&c0,"Select new first vertex of the triangle.",0,NULL,NULL,0)){
                 show_status("Triangle modification cancelled.");
                 return;
             }
-            if(!pick_point(&r1,&c1,"Select new second vertex of the triangle.")){
+            if(!pick_point(&r1,&c1,"Select new second vertex of the triangle.",1,&r0,&c0,'*')){
                 show_status("Triangle modification cancelled.");
                 return;
             }
-            if(!pick_point(&r2,&c2,"Select new third vertex of the triangle.")){
-                show_status("Triangle modification cancelled.");
-                return;
+            {
+                int fixed_r[2] = {r0, r1};
+                int fixed_c[2] = {c0, c1};
+                if(!pick_point(&r2,&c2,"Select new third vertex of the triangle.",2,fixed_r,fixed_c,'*')){
+                    show_status("Triangle modification cancelled.");
+                    return;
+                }
             }
             (*obj).params.triangle.r0=r0;
             (*obj).params.triangle.c0=c0;
@@ -794,13 +818,13 @@ int main(void){
 #ifdef USE_CURSES
         if(canvas_visible)
             show_canvas();
-        mvprintw(ROWS + 1, 0, "2D Graphic Editor Menu:");
-        mvprintw(ROWS + 2, 0, "  1) Add object");
-        mvprintw(ROWS + 3, 0, "  2) Delete object");
-        mvprintw(ROWS + 4, 0, "  3) Modify object");
-        mvprintw(ROWS + 5, 0, "  4) List objects");
-        mvprintw(ROWS + 6, 0, "  5) Render canvas");
-        mvprintw(ROWS + 7, 0, "  6) Quit");
+        mvprintw(ROWS + 4, 0, "2D Graphic Editor Menu:");
+        mvprintw(ROWS + 5, 0, "  1) Add object");
+        mvprintw(ROWS + 6, 0, "  2) Delete object");
+        mvprintw(ROWS + 7, 0, "  3) Modify object");
+        mvprintw(ROWS + 8, 0, "  4) List objects");
+        mvprintw(ROWS + 9, 0, "  5) Render canvas");
+        mvprintw(ROWS + 10, 0, "  6) Quit");
         refresh();
 #else
         if(canvas_visible)
