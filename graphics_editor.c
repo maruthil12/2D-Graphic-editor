@@ -881,3 +881,4 @@ int main(void){
         }
     }
 }
+// Compile with: gcc graphics_editor.c -o graphics_editor -lm
