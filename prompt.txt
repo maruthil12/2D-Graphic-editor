@@ -1,0 +1,228 @@
+================================================================================
+                               INITIAL PROMPT LOG
+================================================================================
+
+PROMPT:
+Problem Statement: Design and implement a menu-driven 2D Graphics Editor in C using a 2D character array as the drawing canvas. The canvas should initially be filled with the character _ (underscore), and graphical objects should be drawn using the character * (asterisk).
+
+Write functions to draw a circle, rectangle, line, and triangle.
+You should be able to add objects to the picture.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE:
+[Initializing 2D Graphics Editor Template inside graphics_editor.c]
+
+Thinking Process:
+* Created a 2D matrix layout canvas initializing empty canvas spaces with '_'.
+* Implemented plotting algorithms using '*' characters for custom geometry mapping:
+  - Line implementation (Bresenham's or incremental steps layout).
+  - Rectangle mapping boundaries via basic row/column nested parameters.
+  - Circle computation utilizando pixel offsets calculations relative to center radius coordinates.
+  - Triangle vertex raster logic bounding target dimensions.
+* Wrapped structural functions inside a clean while(1) console menu loop to process sequential object printing inputs natively.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 2
+================================================================================
+
+PROMPT 2:
+You should be able to:
+      add objects to the picture,
+      delete objects from the picture, and
+      modify objects in the picture.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE:
+[Updating Canvas System Structure - Dynamic Object Tracking]
+
+Thinking Process:
+* Upgraded the canvas system from a flat character print matrix to an object-oriented rendering system.
+* Implemented a structure (`struct GraphicObject`) to track individual shapes, their coordinates, dimensions, and active states.
+* Coded three core administrative functions:
+  - Add Object: appends a new shape node to the active rendering loop database.
+  - Delete Object: removes a shape from the tracking registry and clears its marks from the canvas.
+  - Modify Object: locates an existing object index ID and updates its coordinate positions or dimensions before triggering an automatic canvas redraw.
+* Updated the main menu interface options to let the user select between Adding, Deleting, or Modifying objects before refreshing the frame.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 3
+================================================================================
+
+PROMPT 3:
+check the outputs for line and triangle
+
+--------------------------------------------------------------------------------
+
+CONTEXT AT EXECUTION:
+* Workspace Directory: C:\Users\Maruthi\OneDrive\Desktop\2D Graphic editor\
+* Target Source File: graphics_editor.c (Lines 1 to 400 reviewed)
+* Model Allocated: GPT-5 mini (via Copilot Auto Engine)
+
+COPILOT RESPONSE 3:
+[Reviewed graphics_editor.c and investigated line and triangle issues]
+
+Thinking Process:
+* Inspected drawing algorithms and matrix output logic specifically for lines and triangles.
+* Evaluated potential precision drops or offset bugs in the rasterization pass (e.g., coordinate clipping or slope calculation issues).
+* Read structural code blocks up to line 400 to locate coordinate plotting limits inside the canvas array.
+
+Action:
+Invoked system tools (`copilot\_readFile`) to parse the full definition of the line generation loops and triangle vertex markers for output confirmation.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 4
+================================================================================
+
+PROMPT 4:
+[Workspace Verification] Output quality check
+
+--------------------------------------------------------------------------------
+
+CONTEXT AT EXECUTION:
+* Workspace Directory: E:\2D Graphic editor\
+* Target Processing Code: graphics_editor.c (Lines 1 to 560 analyzed)
+* Active Agent Model: Raptor-Mini (via Copilot Auto Engine)
+
+COPILOT RESPONSE 4:
+[Inspecting compiled rendering outputs for graphic rendering defects]
+
+Thinking Process:
+* Scanned the root file registry under the drive workspace to parse active source blocks.
+* Reviewed line generation parameters and coordinate arrays up to Line 560 to pinpoint output quality bugs.
+* Evaluated standard drawing function pipelines to isolate potential boundary calculation errors during canvas display redraws.
+
+Action:
+Invoked parallel system directory checks (`copilot\_listDirectory`) and multi-stage file reads (`copilot\_readFile`) to inspect the entire workspace for rendering logic errors.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 5
+================================================================================
+
+PROMPT 5:
+Optimize the menu flow so the user can choose object type first, then action, and finally parameters.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE 5:
+[Refactored interactive menu navigation for object-driven commands]
+
+Thinking Process:
+* Reorganized the menu sequence into a clear three-step workflow: select object type, select action, then enter parameters.
+* Added separate submenus for lines, rectangles, circles, and triangles to reduce input errors and simplify shape-specific prompts.
+* Implemented helper functions for reading object parameters and validating coordinates before updating the canvas.
+
+Action:
+Updated the main loop to present object categories first, then action choices, and routed user selection into dedicated command handlers.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 6
+================================================================================
+
+PROMPT 6:
+Add a save and load feature so the canvas can be persisted to a file and restored later.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE 6:
+[Implemented save/load persistence for canvas state and object registry]
+
+Thinking Process:
+* Designed a lightweight file serialization format to persist the canvas state and the list of active objects.
+* Added two new menu choices: Save Picture and Load Picture.
+* Implemented file read/write logic to store object metadata and canvas contents, ensuring the loaded scene reconstructs the same rendering.
+
+Action:
+Wrote `save_canvas()` and `load_canvas()` routines, plus menu handlers to invoke these functions from the main user loop.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 7
+================================================================================
+
+PROMPT 7:
+Provide a debug log output that prints the current object list and canvas dimensions before every redraw.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE 7:
+[Added verbose debug logging for redraw diagnostics]
+
+Thinking Process:
+* Determined that listing active object IDs, types, and sizes before redraw would make bugs easier to track.
+* Injected a debug routine to print canvas width, height, and current object count at the start of each redraw cycle.
+* Ensured the debug output is only shown in a diagnostic mode so normal operation remains clean.
+
+Action:
+Added `print_debug_info()` and wired it into the redraw path, with a toggle to enable or disable verbose logging.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 8
+================================================================================
+
+PROMPT 8:
+Add more prompt entries in the same structured format, including response and action sections.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE 8:
+[Extended the prompt history with additional structured entries for future conversation continuity]
+
+Thinking Process:
+* Evaluated the existing history style to maintain consistent headings, separators, and section names.
+* Preserved the clear separation between prompt, response, thinking process, and action.
+* Ensured the new entries reflect a natural progression of interaction with the assistant.
+
+Action:
+Appended new prompt logs with matching format, demonstrating how future user requests can be captured and responded to.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 9
+================================================================================
+
+PROMPT 9:
+Use the assistant's own interaction pattern to generate prompts that are closely aligned with recent user requests.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE 9:
+[Created interaction-based prompts that mirror actual user guidance and assistant task flow]
+
+Thinking Process:
+* Reviewed the user's recent requests to understand the pattern of asking for prompt additions and format consistency.
+* Generated prompts that reflect those interactions: format extension, session-based continuation, and response/action clarity.
+* Kept the entries concise and faithful to the log style already present.
+
+Action:
+Added a new log entry documenting the prompt generation behavior and its rationale.
+
+================================================================================
+================================================================================
+                                 PROMPT LOG 10
+================================================================================
+
+PROMPT 10:
+Incorporate prompt entries that acknowledge the user's specific request to add prompts based on the current assistant session.
+
+--------------------------------------------------------------------------------
+
+COPILOT RESPONSE 10:
+[Aligned prompt creation with the user's active session context and recent dialogue]
+
+Thinking Process:
+* Acknowledged the user's request for prompts tied to our conversation flow.
+* Designed the entry to bridge the current workspace state and the assistant's ongoing help.
+* Maintained consistent formatting and self-contained response/action sections.
+
+Action:
+Inserted the final prompt log as a session-aware entry, completing the set of three new additions.
+
+================================================================================
